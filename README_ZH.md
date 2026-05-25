@@ -2,7 +2,7 @@
 <img src="./DocuTranslate.png" alt="项目Logo" style="width: 150px">
 </p>
 
-<h1 align="center">DocuTranslate</h1>
+<h1 align="center">DocuTranslate for engineer</h1>
 
 <p align="center">
   <a href="https://github.com/xunbu/docutranslate/stargazers"><img src="https://img.shields.io/github/stars/xunbu/docutranslate?style=flat-square&logo=github&color=blue" alt="GitHub stars"></a>
@@ -17,11 +17,15 @@
 </p>
 
 <p align="center">
-  一个基于大语言模型的轻量级本地文件翻译工具
+  基于 DocuTranslate 二次开发的工程文件翻译工具，重点增加 DXF/DWG 工程图纸翻译支持。
 </p>
 
-- ✅ **支持多种格式**：能翻译 `pdf`、`docx`、`xlsx`、`md`、`txt`、`json`、`epub`、`srt` 、`ass`、`dxf`等多种文件。
-- ✅ **DXF图纸翻译**：使用 `ezdxf` 翻译 `.dxf` 文件中的 `TEXT`、`MTEXT` 实体，输出翻译后的 DXF 和抽取术语 CSV。
+- ✅ **DXF/DWG 工程图纸翻译**：新增 `.dxf` 和 `.dwg` 工程图纸专用翻译工作流，复用原 DocuTranslate 的 AI 翻译器、术语表、Web UI、API、异步队列、重试和配置机制。
+- ✅ **DXF 原生处理**：使用 `ezdxf` 直接读取和回写 `.dxf` 文件，不依赖 AutoCAD。支持翻译 `TEXT`、`MTEXT`、`ATTRIB`、图块内文本、表格单元格文本和引线文字。
+- ✅ **DWG 转换翻译**：通过 ODA File Converter 将 `.dwg` 转为临时 DXF，复用 DXF 工作流完成翻译后，再转换回指定 DWG 版本。
+- ✅ **工程文本清洗与筛选**：可过滤纯数字、符号、工程位号、设备编号、型号、参数值、电气编码、已经是目标语言的内容等非译字符串，并支持 AI 文本筛选减少无效翻译。
+- ✅ **术语 CSV 输出**：输出完整 DXF/DWG 术语 CSV 和仅包含已翻译内容的 CSV，方便工程人员后期人工核对、修订术语和复用翻译结果。
+- ✅ **支持多种格式**：除工程图纸外，仍支持 `pdf`、`docx`、`xlsx`、`md`、`txt`、`json`、`epub`、`srt`、`ass` 等多种文件。
 - ✅ **自动生成术语表**：支持自动生成术语表实现术语的对齐。
 - ✅ **PDF表格、公式、代码识别**：使用`mineru`（在线或本地部署）进行PDF解析，支持对学术论文中经常出现的表格、公式、代码的识别与翻译
 - ✅ **json翻译**：支持通过json路径(`jsonpath-ng`语法规范)指定json中需要被翻译的值。
@@ -35,6 +39,31 @@
 > 在翻译`pdf`时会先转换为markdown，这会**丢失**原先的排版，对排版有要求的用户请注意
 
 > QQ交流群：1047781902 1081128602
+
+## DXF/DWG 图纸翻译
+
+`DocuTranslate for engineer` 的重点扩展方向是工程图纸翻译，同时保持原 DocuTranslate 的工作流、配置和界面风格。
+
+### DXF 工作流
+
+- 使用 `ezdxf` 直接读取和保存 DXF 文件。
+- 遍历模型空间、图纸空间、布局、图块和受支持的 CAD 文本对象。
+- 支持 `TEXT`、`MTEXT`、`ATTRIB`、图块内文本、表格单元格文本和引线文字。
+- 翻译前执行文本清洗、非译内容筛选、重复文本去重和可选 AI 文本筛选。
+- 只将需要翻译的内容送入原项目翻译模型，减少翻译量。
+- 将译文回填到原 DXF 实体，输出翻译后的 `.dxf` 文件。
+- 同时输出完整术语 CSV 和仅翻译内容 CSV，方便人工核对。
+
+### DWG 工作流
+
+- DWG 文件不做原生二进制解析。
+- 使用 ODA File Converter 将 DWG 转换为 DXF。
+- 翻译阶段复用 DXF 工作流。
+- 翻译完成后再将 DXF 转换为目标 DWG 版本。
+- DWG 输出版本可在 Web UI 下拉框中选择，默认 `ACAD2007`。
+- ODA File Converter 是外部依赖，不内置在 exe 中，需要用户安装或手动选择路径。
+
+详细实现说明见：[DXF_DWG_TRANSLATION_TECHNICAL_ROUTE.md](./DXF_DWG_TRANSLATION_TECHNICAL_ROUTE.md)。
 
 **UI界面**：
 ![UI界面](/images/UI界面.png)
@@ -86,9 +115,9 @@ uv run --no-dev docutranslate -i
 
 ```bash
 # 初始化环境
-git clone https://github.com/xunbu/docutranslate.git
+git clone https://github.com/simonzhongeng-sketch/DocuTranslate-for-engineer.git
 
-cd docutranslate
+cd DocuTranslate-for-engineer
 
 uv sync --no-dev
 # uv sync --no-dev --extra mcp

@@ -2,7 +2,7 @@
 <img src="./DocuTranslate.png" alt="Project Logo" style="width: 150px">
 </p>
 
-<h1 align="center">DocuTranslate</h1>
+<h1 align="center">DocuTranslate for engineer</h1>
 
 <p align="center">
   <a href="https://github.com/xunbu/docutranslate/stargazers"><img src="https://img.shields.io/github/stars/xunbu/docutranslate?style=flat-square&logo=github&color=blue" alt="GitHub stars"></a>
@@ -17,11 +17,15 @@
 </p>
 
 <p align="center">
-  A lightweight local file translation tool based on Large Language Models.
+  An engineering-oriented document translation tool based on DocuTranslate, with added support for DXF/DWG drawing translation.
 </p>
 
-- ✅ **Support Multiple Formats**: Translates `pdf`, `docx`, `xlsx`, `md`, `txt`, `json`, `epub`, `srt`, `ass`, `dxf`, and more.
-- ✅ **DXF Drawing Translation**: Uses `ezdxf` to translate `TEXT` and `MTEXT` entities in `.dxf` files, outputs a translated DXF and a CSV of extracted terms.
+- ✅ **DXF/DWG Engineering Drawing Translation**: Adds dedicated workflows for `.dxf` and `.dwg` engineering drawings, reusing the original DocuTranslate translation engine, glossary, Web UI, API, async queue, retry, and configuration mechanisms.
+- ✅ **DXF Native Processing with ezdxf**: Reads and writes `.dxf` files through `ezdxf`, without AutoCAD. Supports translation of `TEXT`, `MTEXT`, `ATTRIB`, block text, table cell text, and leader text.
+- ✅ **DWG Translation via ODA File Converter**: Converts `.dwg` files to temporary DXF files through ODA File Converter, translates them through the DXF workflow, and converts the translated result back to the selected DWG version.
+- ✅ **Engineering Text Cleaning and Filtering**: Filters non-translatable drawing strings such as pure numbers, symbols, engineering tags, device codes, model numbers, electrical parameters, and text already in the target language. Optional AI filtering can further reduce unnecessary translation.
+- ✅ **Translation Review CSV Output**: Outputs full DXF/DWG term CSV files and translated-only CSV files for manual engineering review, terminology correction, and later reuse.
+- ✅ **Support Multiple Formats**: Besides engineering drawings, it still translates `pdf`, `docx`, `xlsx`, `md`, `txt`, `json`, `epub`, `srt`, `ass`, and more.
 - ✅ **Auto-Generate Glossary**: Supports automatic glossary generation to ensure term alignment.
 - ✅ **PDF Table, Formula, Code Recognition**: Uses `mineru` (online or locally deployed) for PDF parsing, supporting recognition and translation of tables, formulas, and code commonly found in academic papers.
 - ✅ **JSON Translation**: Supports specifying values to translate within JSON using paths (`jsonpath-ng` syntax).
@@ -35,6 +39,29 @@
 > When translating `pdf`, it is first converted to markdown. This will **lose** the original layout. Users with strict layout requirements should take note.
 
 > QQ Community Group: 1047781902 1081128602
+
+## DXF/DWG Drawing Translation
+
+`DocuTranslate for engineer` focuses on engineering drawing translation while preserving the original DocuTranslate workflow style.
+
+### DXF Workflow
+
+- Uses `ezdxf` to read and write DXF files directly.
+- Extracts text from modelspace, paperspace/layouts, blocks, and supported CAD text entities.
+- Supports `TEXT`, `MTEXT`, `ATTRIB`, block text, table cell text, and leader text.
+- Cleans text, filters non-translatable engineering strings, deduplicates repeated text, and then translates only the necessary content.
+- Writes translated text back into the original DXF entities.
+- Exports translated `.dxf`, complete term CSV, and translated-only CSV files.
+
+### DWG Workflow
+
+- DWG files are not parsed directly.
+- The workflow uses ODA File Converter to convert DWG to DXF.
+- The translated DXF is converted back to DWG after translation.
+- The DWG output version can be selected in the Web UI, with `ACAD2007` as the default.
+- ODA File Converter is an external dependency and is not bundled into the executable.
+
+For implementation details, see [DXF_DWG_TRANSLATION_TECHNICAL_ROUTE.md](./DXF_DWG_TRANSLATION_TECHNICAL_ROUTE.md).
 
 **UI Interface**:
 ![UI Interface](/images/UI界面.png)
@@ -86,9 +113,9 @@ uv run --no-dev docutranslate -i
 
 ```bash
 # Initialize environment
-git clone https://github.com/xunbu/docutranslate.git
+git clone https://github.com/simonzhongeng-sketch/DocuTranslate-for-engineer.git
 
-cd docutranslate
+cd DocuTranslate-for-engineer
 
 uv sync --no-dev
 # uv sync --no-dev --extra mcp
