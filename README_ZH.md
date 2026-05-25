@@ -1,574 +1,323 @@
-<p align="center">
-<img src="./DocuTranslate.png" alt="项目Logo" style="width: 150px">
-</p>
+# DocuTranslate for engineer 技术路线与功能说明
 
-<h1 align="center">DocuTranslate for engineer</h1>
+`DocuTranslate for engineer` 基于开源项目 [DocuTranslate](https://github.com/xunbu/docutranslate) 二次开发，核心目标是在保留原项目多 AI 平台翻译、Web UI、RESTful API、术语表、异步并发翻译、多格式工作流等能力的基础上，扩展工程图纸文件翻译能力。
 
-<p align="center">
-  <a href="https://github.com/simonzhongeng-sketch/DocuTranslate-for-engineer"><img src="https://img.shields.io/badge/DocuTranslate-for%20engineer-blue?style=flat-square&logo=github" alt="DocuTranslate for engineer"></a>
-  <a href="https://github.com/xunbu/docutranslate"><img src="https://img.shields.io/badge/%E5%9F%BA%E4%BA%8E-DocuTranslate-lightgrey?style=flat-square&logo=github" alt="基于 DocuTranslate"></a>
-  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white&style=flat-square" alt="Python Version"></a>
-  <a href="./LICENSE"><img src="https://img.shields.io/github/license/xunbu/docutranslate?style=flat-square" alt="License"></a>
-</p>
+本项目没有重写原有翻译模型、AI 调用方式、并发机制、配置方式和 Web UI，而是新增 DXF/DWG 工程图纸翻译工作流，让工程文件与 docx、xlsx、txt、pptx 等文件一样进入统一翻译流程。
 
-<p align="center">
-  <a href="/README_ZH.md"><strong>简体中文</strong></a> / <a href="/README.md"><strong>English</strong></a> / <a href="/README_JP.md"><strong>日本語</strong></a> / <a href="/README_VI.md"><strong>Tiếng Việt</strong></a>
-</p>
+如果本项目对你有帮助，也欢迎前往源项目 [xunbu/docutranslate](https://github.com/xunbu/docutranslate) 点 Star 支持原作者。
 
-<p align="center">
-  基于 DocuTranslate 二次开发的工程文件翻译工具，重点增加 DXF/DWG 工程图纸翻译支持。
-</p>
+当前工程版展示版本为 `v1.0.0`。
 
-> 本项目基于源项目 [DocuTranslate](https://github.com/xunbu/docutranslate) 二次开发，源项目提供了核心翻译工作流、AI 配置、Web UI、API、术语表和多格式翻译基础。本项目重点扩展 DXF/DWG 工程图纸翻译能力。如果本项目对你有帮助，也欢迎前往源项目点 Star 支持原作者。
+## 1. 总体技术路线
 
-- ✅ **DXF/DWG 工程图纸翻译**：新增 `.dxf` 和 `.dwg` 工程图纸专用翻译工作流，复用原 DocuTranslate 的 AI 翻译器、术语表、Web UI、API、异步队列、重试和配置机制。
-- ✅ **DXF 原生处理**：使用 `ezdxf` 直接读取和回写 `.dxf` 文件，不依赖 AutoCAD。支持翻译 `TEXT`、`MTEXT`、`ATTRIB`、图块内文本、表格单元格文本和引线文字。
-- ✅ **DWG 转换翻译**：通过 ODA File Converter 将 `.dwg` 转为临时 DXF，复用 DXF 工作流完成翻译后，再转换回指定 DWG 版本。
-- ✅ **工程文本清洗与筛选**：可过滤纯数字、符号、工程位号、设备编号、型号、参数值、电气编码、已经是目标语言的内容等非译字符串，并支持 AI 文本筛选减少无效翻译。
-- ✅ **术语 CSV 输出**：输出完整 DXF/DWG 术语 CSV 和仅包含已翻译内容的 CSV，方便工程人员后期人工核对、修订术语和复用翻译结果。
-- ✅ **继承 DocuTranslate 基础能力**：保留源项目的多格式翻译、术语表生成、AI 平台配置、异步任务队列、Web UI 和 RESTful API，本项目在此基础上重点扩展工程图纸翻译。
+整体路线如下：
 
-> 在翻译`pdf`时会先转换为markdown，这会**丢失**原先的排版，对排版有要求的用户请注意
+1. Web UI/API 接收上传文件和翻译配置。
+2. 根据文件类型选择工作流。
+3. DXF 文件进入 DXF Workflow。
+4. DWG 文件先通过 ODA File Converter 转为 DXF，再复用 DXF Workflow。
+5. DXF Workflow 使用 `ezdxf` 读取图纸文本对象。
+6. 执行文本清洗、文本筛选、去重和可选 AI 文本筛选。
+7. 复用 DocuTranslate 原有 Translator、术语表、并发、重试、Prompt、目标语言等配置执行翻译。
+8. 将译文回填到 DXF 对象。
+9. DWG 工作流将翻译后的 DXF 再转换为目标 DWG 版本。
+10. 输出翻译后的 DXF/DWG、完整术语 CSV 和仅包含已翻译内容的 CSV。
 
-> 源项目地址：[xunbu/docutranslate](https://github.com/xunbu/docutranslate)。欢迎前往源项目点 Star 支持原作者。
+## 2. 原项目复用范围
 
-## DXF/DWG 图纸翻译
+继续复用 DocuTranslate 原有能力：
 
-`DocuTranslate for engineer` 的重点扩展方向是工程图纸翻译，同时保持原 DocuTranslate 的工作流、配置和界面风格。
+- AI 平台配置：`base_url`、`api_key`、`model_id` 等。
+- 翻译配置：目标语言、并发数、温度、超时、重试、分块大小、自定义 Prompt。
+- 术语表机制：上传术语表、自动生成术语表、术语替换与约束。
+- Web UI：沿用原前端页面和任务卡片交互。
+- API：沿用原文件上传、状态查询、日志、下载和附件机制。
+- 异步任务：沿用原后台任务处理和进度日志。
+- 输出机制：沿用原下载文件和附件下载方式。
 
-### DXF 工作流
+新增 DXF/DWG 能力只作为工作流扩展，不另起一套翻译框架。
 
-- 使用 `ezdxf` 直接读取和保存 DXF 文件。
-- 遍历模型空间、图纸空间、布局、图块和受支持的 CAD 文本对象。
-- 支持 `TEXT`、`MTEXT`、`ATTRIB`、图块内文本、表格单元格文本和引线文字。
-- 翻译前执行文本清洗、非译内容筛选、重复文本去重和可选 AI 文本筛选。
-- 只将需要翻译的内容送入原项目翻译模型，减少翻译量。
-- 将译文回填到原 DXF 实体，输出翻译后的 `.dxf` 文件。
-- 同时输出完整术语 CSV 和仅翻译内容 CSV，方便人工核对。
+## 3. DXF Workflow
 
-### DWG 工作流
+DXF 使用 `ezdxf` 直接读取和回写，不依赖 AutoCAD。
 
-- DWG 文件不做原生二进制解析。
-- 使用 ODA File Converter 将 DWG 转换为 DXF。
-- 翻译阶段复用 DXF 工作流。
-- 翻译完成后再将 DXF 转换为目标 DWG 版本。
-- DWG 输出版本可在 Web UI 下拉框中选择，默认 `ACAD2007`。
-- ODA File Converter 是外部依赖，不内置在 exe 中，需要用户安装或手动选择路径。
+核心流程：
 
-详细实现说明见：[DXF_DWG_TRANSLATION_TECHNICAL_ROUTE.md](./DXF_DWG_TRANSLATION_TECHNICAL_ROUTE.md)。
+1. 读取 DXF 文件。
+2. 遍历 modelspace、paperspace/layouts、blocks。
+3. 提取受支持实体中的文本。
+4. 生成统一文本记录。
+5. 对文本进行清洗、筛选、去重。
+6. 调用原项目翻译器批量翻译。
+7. 将译文回填到原实体。
+8. 保存翻译后的 DXF。
+9. 导出 CSV 术语文件。
 
-**UI界面**：
-![UI界面](/images/UI界面.png)
+主要模块：
 
-**论文翻译**：
-![论文翻译](/images/论文翻译.png)
+- `docutranslate/workflow/dxf_workflow.py`
+- `docutranslate/workflow/dxf_text_cleaner.py`
+- `docutranslate/workflow/dxf_layout.py`
+- `docutranslate/workflow/dxf_mtext.py`
+- `docutranslate/translator/ai_translator/dxf_translator.py`
+- `docutranslate/exporter/dxf/dxf2dxf_exporter.py`
 
-**小说翻译**：
-![小说翻译](/images/小说翻译.png)
+## 4. DXF 支持对象
 
-## 安装与源项目
+当前支持：
 
-本工程版源码维护在当前仓库。源项目 DocuTranslate 及其原始发布包可在 [xunbu/docutranslate](https://github.com/xunbu/docutranslate) 查看，欢迎前往源项目点 Star 支持原作者。
+- `TEXT`
+- `MTEXT`
+- `ATTRIB`
+- 图块内文本
+- 表格单元格文本
+- 引线文字对象
 
-## 快速开始
+当前不处理或不重点优化：
 
-### 使用 pip
+- DWG 原生二进制解析。
+- 复杂 CAD 几何结构重排。
+- 非文本类图元翻译。
+- 表格复杂排版重算。
+- 依赖 AutoCAD 的专有对象。
 
-```bash
-# 基础安装
-pip install docutranslate
+## 5. 文本清洗与筛选
 
-# 安装mcp拓展
-pip install docutranslate[mcp]
+DXF/DWG 文本筛选通过工作流配置控制。
 
-docutranslate -i
+页面提供以下选项：
 
-#docutranslate -i --with-mcp
+- 翻译前清洗文本。
+- 启用文本筛选。
+- AI 文本筛选。
+- 自定义 AI 筛选 Prompt。
+- DWG ODA 路径和转换超时。
+- DWG 输出版本。
+
+清洗逻辑：
+
+- 去除开头和末尾空白。
+- 合并多余空格。
+- 保留必要换行。
+- 规范部分全角字符。
+- 将清洗后的文本作为筛选和去重依据。
+
+筛选逻辑：
+
+- 过滤空文本。
+- 过滤纯数字。
+- 过滤纯符号。
+- 过滤工程位号、设备编号、端子号、型号、规格参数等非译内容。
+- 过滤已经是目标语言的内容。
+- 可按源语言过滤非源语言内容。
+
+典型过滤示例：
+
+- `L0SW01`
+- `H100*W35`
+- `MCU`
+- `PDU-IN-V1+`
+- `TB54(24VDC-)`
+- `PSU11- +`
+- `5.4A,50-60Hz`
+- `1:1`
+- `(CN032)`
+
+## 6. 去重策略
+
+翻译前对清洗后的文本统一去重：
+
+1. 相同 `cleaned_text` 只进入翻译模型一次。
+2. 建立 `cleaned_text -> translated_text` 映射。
+3. 回填时将同一译文写回所有对应实体。
+4. CSV 仍保留每个实体的明细记录，便于人工核对。
+
+这样可以减少大图纸和批量文件中的重复翻译量，提高翻译效率。
+
+## 7. AI 文本筛选
+
+AI 文本筛选是 DXF/DWG 工作流中的可选步骤，默认开启。
+
+作用：
+
+- 在正式翻译前，让当前配置的 AI 模型判断每段文本是否需要翻译。
+- 模型只输出 `KEEP` 或 `SKIP`。
+- `KEEP` 的文本进入翻译。
+- `SKIP` 的文本保持原文。
+
+默认策略偏保守：
+
+- 不确定时倾向 `KEEP`。
+- 表头、列名、行标签、标题、说明性文字优先保留翻译。
+- 纯数字、符号、工程位号、设备编号、参数值、单位、电气编码、已是目标语言的内容优先跳过。
+
+AI 筛选 Prompt 可在页面中修改。
+
+## 8. MTEXT 处理
+
+MTEXT 不是普通纯文本，内部可能包含 DXF 控制码和格式信息。
+
+处理策略：
+
+- 提取时优先读取可翻译纯文本。
+- 回填时按 MTEXT 内容格式重新组装。
+- 尽量保留原实体宽度、高度、旋转角度、插入点、附着方式、样式、图层等属性。
+- 避免直接把普通字符串写入导致控制码丢失。
+
+由于不同 CAD 软件对 MTEXT 自动重排刷新机制不同，当前策略以保留结构和可显示性为优先，不进行复杂几何重排。
+
+## 9. 表格翻译
+
+表格文本按单元格提取和回写。
+
+处理策略：
+
+- 单纯翻译表格文本。
+- 不做复杂表格排版重算。
+- 表头、列名、行标签默认倾向翻译。
+- 对明显工程编码、参数值、已经是目标语言的内容继续筛选。
+
+目标是保证表格文本能回写并保持图纸结构不被破坏。
+
+## 10. DWG Workflow
+
+DWG 不直接解析，而是依赖 ODA File Converter 转换：
+
+1. 自动识别 ODA File Converter 安装路径。
+2. 允许用户在 DWG 选项中手动选择 `ODAFileConverter.exe`。
+3. 将源 DWG 转换为临时 DXF。
+4. 调用 DXF Workflow 完成翻译。
+5. 将翻译后的 DXF 转换为目标 DWG 版本。
+6. 输出翻译后的 DWG 文件。
+
+DWG 输出版本通过页面下拉框选择，默认 `ACAD2007`。
+
+主要模块：
+
+- `docutranslate/workflow/dwg_workflow.py`
+- `docutranslate/workflow/oda_converter.py`
+
+外部依赖：
+
+- ODA File Converter。
+- 下载地址由页面提示。
+- 该软件不内置在 exe 中。
+
+## 11. 输出文件
+
+DXF/DWG 翻译完成后输出：
+
+- 翻译后的 `.dxf` 文件。
+- 翻译后的 `.dwg` 文件。
+- 完整术语 CSV。
+- 仅包含实际翻译内容的 CSV。
+
+CSV 用途：
+
+- 人工复核原文和译文。
+- 检查被过滤文本。
+- 追踪实体类型、句段状态和回填结果。
+- 后期作为术语表或审校依据。
+
+常见 CSV 字段：
+
+- `id`
+- `entity_handle`
+- `entity_type`
+- `layout_name`
+- `original_text`
+- `cleaned_text`
+- `translated_text`
+- `status`
+- `remark`
+- MTEXT 重新组装后的内容字段。
+
+## 12. Web UI 与 API 接入
+
+Web UI 扩展点：
+
+- 文件上传支持 `.dxf` 和 `.dwg`。
+- 工作流选择中增加 DXF 图纸翻译和 DWG 图纸翻译。
+- DXF/DWG 工作流显示专用配置项。
+- DWG 工作流显示 ODA 路径选择、转换超时和输出版本。
+- 任务完成后支持下载翻译后的图纸和 CSV 附件。
+
+API 仍复用原 `/service/translate/file`、状态查询、日志查询、下载和附件接口。
+
+## 13. 打包路线
+
+Windows exe 使用 PyInstaller 打包。
+
+打包入口：
+
+- `docutranslate/app.py`
+
+打包配置：
+
+- `full.spec`
+
+工程版输出：
+
+- `dist/DocuTranslate_for_engineer-1.0.0-win.exe`
+
+前端构建流程：
+
+1. 在 `frontend` 目录执行 Vite build。
+2. 将构建后的 `index.html`、`assets`、`i18n` 同步到 `docutranslate/static`。
+3. PyInstaller 收集 `docutranslate/static` 和 `docutranslate/template`。
+4. 生成单文件 Windows exe。
+
+## 14. 运行方式
+
+开发环境运行：
+
+```powershell
+.\.venv\Scripts\python.exe -m docutranslate.cli -i
 ```
 
-### 使用 uv
+或直接运行应用入口：
 
-```bash
-# 初始化环境
-uv init
-
-# 基础安装
-uv add docutranslate
-
-# 安装 mcp 扩展
-uv add docutranslate[mcp]
-
-uv run --no-dev docutranslate -i
-
-#uv run --no-dev docutranslate -i --with-mcp
+```powershell
+.\.venv\Scripts\python.exe docutranslate\app.py
 ```
 
-### 使用 git
+打包后运行：
 
-```bash
-# 初始化环境
-git clone https://github.com/simonzhongeng-sketch/DocuTranslate-for-engineer.git
-
-cd DocuTranslate-for-engineer
-
-uv sync --no-dev
-# uv sync --no-dev --extra mcp
-# uv sync --no-dev --all-extras
-
+```powershell
+.\dist\DocuTranslate_for_engineer-1.0.0-win.exe
 ```
 
-### 使用docker
+默认访问：
 
-```bash
-docker run -d -p 8010:8010 xunbu/docutranslate:latest
-# docker run -it -p 8010:8010 xunbu/docutranslate:latest
-# docker run -it -p 8010:8010 xunbu/docutranslate:v1.5.4
+```text
+http://127.0.0.1:8010/
 ```
 
-## 启动 Web UI 和 API 服务
-
-为了方便使用，DocuTranslate 提供了一个功能齐全的 Web 界面和 RESTful API。
-
-**启动服务:**
-
-```bash
-  docutranslate -i                           (启动图形界面，默认本地访问)
-  docutranslate -i --host 0.0.0.0            (允许局域网内其他设备访问)
-  docutranslate -i -p 8081                   (指定端口号)
-  docutranslate -i --cors                    (启用默认的跨域设置)
-  docutranslate -i --with-mcp                (启动图形界面同时启用 MCP SSE 端点，共用队列，共用端口号)
-  docutranslate --mcp                         (启动 MCP 服务器，stdio 模式)
-  docutranslate --mcp --transport sse         (启动 MCP 服务器，SSE 模式)
-  docutranslate --mcp --transport sse --mcp-host MCP_HOST   --mcp-port MCP_PORT  (启动 MCP 服务器，SSE 模式)
-  docutranslate --mcp --transport streamable-http  (启动 MCP 服务器，Streamable HTTP 模式)
-```
-
-- **交互式界面**: 启动服务后，请在浏览器中访问 `http://127.0.0.1:8010` (或您指定的端口)。
-- **API 文档**: 完整的 API 文档（Swagger UI）位于 `http://127.0.0.1:8010/docs`。
-- MCP：启用sse服务访问端点位于`http://127.0.0.1:8010/mcp/sse` (--with-mcp方式启动) 或 `http://127.0.0.1:8000/mcp/sse` (--mcp方式启动)
-
-## MCP 配置
-
-DocuTranslate 可以用作 MCP（Model Context Protocol）服务器。详细文档请参考 [MCP 文档](./docutranslate/mcp/README.md)。
-
-### 支持的环境变量
-
-| 环境变量 | 说明 | 必需 |
-|---------|------|------|
-| `DOCUTRANSLATE_API_KEY` | AI 平台 API 密钥 | 是 |
-| `DOCUTRANSLATE_BASE_URL` | AI 平台基础 URL | 是 |
-| `DOCUTRANSLATE_MODEL_ID` | 模型 ID | 是 |
-| `DOCUTRANSLATE_TO_LANG` | 目标语言（默认：中文） | 否 |
-| `DOCUTRANSLATE_CONCURRENT` | 并发请求数（默认：10） | 否 |
-| `DOCUTRANSLATE_CONVERT_ENGINE` | PDF 转换引擎 | 否 |
-| `DOCUTRANSLATE_MINERU_TOKEN` | MinerU API Token | 否 |
-
-### uvx 配置（无需安装）
-
-```json
-{
-  "mcpServers": {
-    "docutranslate": {
-      "command": "uvx",
-      "args": ["--from", "docutranslate[mcp]", "docutranslate", "--mcp"],
-      "env": {
-        "DOCUTRANSLATE_API_KEY": "sk-xxxxxx",
-        "DOCUTRANSLATE_BASE_URL": "https://api.openai.com/v1",
-        "DOCUTRANSLATE_MODEL_ID": "gpt-4o",
-        "DOCUTRANSLATE_TO_LANG": "中文",
-        "DOCUTRANSLATE_CONCURRENT": "10",
-        "DOCUTRANSLATE_CONVERT_ENGINE": "mineru",
-        "DOCUTRANSLATE_MINERU_TOKEN": "your-mineru-token"
-      }
-    }
-  }
-}
-```
-
-### SSE 模式配置
-
-首先以 SSE 模式启动 MCP 服务器：
-
-```bash
-docutranslate --mcp --transport sse --mcp-host 127.0.0.1 --mcp-port 8000
-```
-
-然后在客户端中配置 SSE 端点：`http://127.0.0.1:8000/mcp/sse`
-
-## 代码使用方式
-
-### 使用Client SDK (推荐)
-
-使用 `Client` 类是开始翻译最简单的方式，它提供了简洁直观的 API：
-
-```python
-from docutranslate.sdk import Client
-
-# 使用您的 AI 平台设置初始化客户端
-client = Client(
-    api_key="YOUR_OPENAI_API_KEY",  # 或其他 AI 平台 API key
-    base_url="https://api.openai.com/v1/",
-    model_id="gpt-4o",
-    to_lang="中文",
-    concurrent=10,  # 并发请求数
-)
-
-# 示例 1: 翻译纯文本文件 (无需 PDF 解析引擎)
-result = client.translate("path/to/your/document.txt")
-print(f"翻译完成！保存位置: {result.save()}")
-
-# 示例 2: 翻译 PDF 文件 (需要指定 mineru_token 或使用本地部署)
-# 方式 A: 使用在线 MinerU (需要 token: https://mineru.net/apiManage/token)
-result = client.translate(
-    "path/to/your/document.pdf",
-    convert_engine="mineru",
-    mineru_token="YOUR_MINERU_TOKEN",  # 替换为您的 MinerU Token
-    formula_ocr=True,  # 启用公式识别
-)
-result.save(fmt="html")
-
-# 方式 B: 使用本地部署的 MinerU (推荐内网/离线环境)
-# 需要先启动本地 MinerU 服务，参考: https://github.com/opendatalab/MinerU
-result = client.translate(
-    "path/to/your/document.pdf",
-    convert_engine="mineru_deploy",
-    mineru_deploy_base_url="http://127.0.0.1:8000",  # 您的本地 MinerU 地址
-    mineru_deploy_backend="hybrid-auto-engine",  # 后端类型
-)
-result.save(fmt="markdown")
-
-# 示例 3: 翻译 Docx 文件 (保持格式)
-result = client.translate(
-    "path/to/your/document.docx",
-    insert_mode="replace",  # replace/append/prepend
-)
-result.save(fmt="docx")  # 保存为 docx 格式
-
-# 示例 4: 导出为 Base64 编码字符串 (用于 API 传输)
-base64_content = result.export(fmt="html")
-print(f"导出内容长度: {len(base64_content)}")
-
-# 您还可以访问底层工作流以进行高级操作
-# workflow = result.workflow
-```
-
-**Client 功能特点:**
-- **自动检测**: 自动检测文件类型并选择合适的工作流
-- **灵活配置**: 可在每次翻译调用时覆盖默认设置
-- **多种输出选项**: 保存到磁盘或导出为 Base64 字符串
-- **异步支持**: 使用 `translate_async()` 进行并发翻译任务
-
-#### Client SDK 参数说明
-
-| 参数 | 类型 | 默认值 | 说明 |
-|:---|:---|:---|:---|
-| **api_key** | `str` | - | AI 平台 API 密钥 |
-| **base_url** | `str` | - | AI 平台基础 URL（如 `https://api.openai.com/v1/`） |
-| **model_id** | `str` | - | 翻译使用的模型 ID |
-| **to_lang** | `str` | - | 目标语言（如 `"中文"`、`"English"`、`"日本語"`） |
-| **concurrent** | `int` | 10 | 并发 LLM 请求数 |
-| **convert_engine** | `str` | `"mineru"` | PDF 解析引擎：`"mineru"`、`"mineru_deploy"` |
-| **md2docx_engine** | `str` | `"auto"` | Markdown 转 Docx 引擎：`"python"`（纯Python）、`"pandoc"`（使用 Pandoc）、`"auto"`（若已安装 Pandoc 则使用，否则用Python）、`null`（不生成 docx） |
-| **mineru_deploy_base_url** | `str` | - | 本地 minerU API 地址（当 `convert_engine="mineru_deploy"` 时） |
-| **mineru_deploy_parse_method** | `str` | `"auto"` | 本地 minerU 解析方法: `"auto"`, `"txt"`, `"ocr"` |
-| **mineru_deploy_table_enable** | `bool` | `True` | 本地 minerU 是否启用表格识别 |
-| **mineru_token** | `str` | - | minerU API Token（使用在线 minerU 时） |
-| **skip_translate** | `bool` | `False` | 跳过翻译，仅解析文档 |
-| **output_dir** | `str` | `"./output"` | `save()` 方法的默认输出目录 |
-| **chunk_size** | `int` | 3000 | LLM 处理的文本分块大小 |
-| **temperature** | `float` | 0.3 | LLM 温度参数 |
-| **timeout** | `int` | 60 | 请求超时时间（秒） |
-| **retry** | `int` | 3 | 失败重试次数 |
-| **provider** | `str` | `"auto"` | AI 提供商类型（auto、openai、azure 等） |
-| **force_json** | `bool` | `False` | 强制 JSON 输出模式 |
-| **rpm** | `int` | - | 每分钟请求数限制 |
-| **tpm** | `int` | - | 每分钟 Token 数限制 |
-| **extra_body** | `str` | - | JSON字符串格式的额外请求体参数，会合并到API请求中 |
-| **thinking** | `str` | `"auto"` | 思考模式：`"auto"`、`"none"`、`"block"` |
-| **custom_prompt** | `str` | - | 自定义翻译提示词 |
-| **system_proxy_enable** | `bool` | `False` | 启用系统代理 |
-| **insert_mode** | `str` | `"replace"` | Docx/Xlsx/Txt 插入模式：`"replace"`、`"append"`、`"prepend"` |
-| **separator** | `str` | `"\n"` | append/prepend 模式的文本分隔符 |
-| **segment_mode** | `str` | `"line"` | 分段模式：`"line"`、`"paragraph"`、`"none"` |
-| **translate_regions** | `list` | - | Excel 翻译区域（如 `"Sheet1!A1:B10"`） |
-| **model_version** | `str` | `"vlm"` | MinerU 模型版本：`"pipeline"`、`"vlm"` |
-| **formula_ocr** | `bool` | `True` | PDF 解析启用公式 OCR |
-| **code_ocr** | `bool` | `True` | PDF 解析启用代码 OCR |
-| **mineru_deploy_backend** | `str` | `"hybrid-auto-engine"` | MinerU 本地后端：`"pipeline"`、`"vlm-auto-engine"`、`"vlm-http-client"`、`"hybrid-auto-engine"`、`"hybrid-http-client"` |
-| **mineru_deploy_formula_enable** | `bool` | `True` | 本地 MinerU 启用公式识别 |
-| **mineru_deploy_start_page_id** | `int` | 0 | 本地 MinerU 解析起始页 ID |
-| **mineru_deploy_end_page_id** | `int` | 99999 | 本地 MinerU 解析结束页 ID |
-| **mineru_deploy_lang_list** | `list` | - | 本地 MinerU 解析语言列表 |
-| **mineru_deploy_server_url** | `str` | - | MinerU 本地服务器 URL |
-| **json_paths** | `list` | - | JSON 翻译的 JSONPath 表达式（如 `"$.data.*"`） |
-| **glossary_generate_enable** | `bool` | - | 启用自动术语表生成 |
-| **glossary_dict** | `dict` | - | 术语表字典（如 `{"Jobs": "Steve Jobs"}`） |
-| **glossary_agent_config** | `dict` | - | 术语表代理配置 |
-
-#### Result 方法说明
-
-| 方法 | 参数 | 说明 |
-|:---|:---|:---|
-| **save()** | `output_dir`, `name`, `fmt` | 将翻译结果保存到磁盘 |
-| **export()** | `fmt` | 导出为 Base64 编码的字符串 |
-| **supported_formats** | - | 获取支持的输出格式列表 |
-| **workflow** | - | 访问底层工作流对象 |
-
-```python
-import asyncio
-from docutranslate.sdk import Client
-
-async def translate_multiple():
-    client = Client(
-        api_key="YOUR_API_KEY",
-        base_url="https://api.openai.com/v1/",
-        model_id="gpt-4o",
-        to_lang="中文",
-    )
-
-    # 并发翻译多个文件
-    files = ["doc1.pdf", "doc2.docx", "notes.txt"]
-    results = await asyncio.gather(
-        *[client.translate_async(f) for f in files]
-    )
-
-    for r in results:
-        print(f"保存位置: {r.save()}")
-
-asyncio.run(translate_multiple())
-```
-
-### 使用 Workflow API（高级控制）
-
-如需更精细的控制，可直接使用 Workflow API。所有工作流遵循相同的模式：
-
-```python
-# 模式:
-# 1. 创建 TranslatorConfig（LLM 设置）
-# 2. 创建 WorkflowConfig（工作流设置）
-# 3. 创建 Workflow 实例
-# 4. workflow.read_path(文件)
-# 5. await workflow.translate_async()
-# 6. workflow.save_as_*(name=...) 或 export_to_*(...)
-```
-#### 可用工作流及输出方法
-
-| 工作流 | 输入格式 | save_as_* | export_to_* | 主要配置选项 |
-|:---|:---|:---|:---|:---|
-| **MarkdownBasedWorkflow** | `.pdf`, `.docx`, `.md`, `.png`, `.jpg` | `html`, `markdown`, `markdown_zip`, `docx` | `html`, `markdown`, `markdown_zip`, `docx` | `convert_engine`, `md2docx_engine`, `translator_config` |
-| **TXTWorkflow** | `.txt` | `txt`, `html` | `txt`, `html` | `translator_config` |
-| **JsonWorkflow** | `.json` | `json`, `html` | `json`, `html` | `translator_config`, `json_paths` |
-| **DocxWorkflow** | `.docx` | `docx`, `html` | `docx`, `html` | `translator_config`, `insert_mode` |
-| **XlsxWorkflow** | `.xlsx`, `.csv` | `xlsx`, `html` | `xlsx`, `html` | `translator_config`, `insert_mode` |
-| **SrtWorkflow** | `.srt` | `srt`, `html` | `srt`, `html` | `translator_config` |
-| **EpubWorkflow** | `.epub` | `epub`, `html` | `epub`, `html` | `translator_config`, `insert_mode` |
-| **HtmlWorkflow** | `.html`, `.htm` | `html` | `html` | `translator_config`, `insert_mode` |
-| **AssWorkflow** | `.ass` | `ass`, `html` | `ass`, `html` | `translator_config` |
-
-#### 关键配置选项
-
-**通用 TranslatorConfig 选项:**
-
-| 选项 | 类型 | 默认值 | 说明 |
-|:---|:---|:---|:---|
-| `base_url` | `str` | - | AI 平台基础 URL |
-| `api_key` | `str` | - | AI 平台 API 密钥 |
-| `model_id` | `str` | - | 模型 ID |
-| `to_lang` | `str` | - | 目标语言 |
-| `chunk_size` | `int` | 3000 | 文本分块大小 |
-| `concurrent` | `int` | 10 | 并发请求数 |
-| `temperature` | `float` | 0.3 | LLM 温度 |
-| `timeout` | `int` | 60 | 请求超时（秒） |
-| `retry` | `int` | 3 | 重试次数 |
-
-**格式特定选项:**
-
-| 选项 | 适用工作流 | 说明 |
-|:---|:---|:---|
-| `insert_mode` | Docx, Xlsx, Html, Epub | `"replace"`（默认）, `"append"`, `"prepend"` |
-| `json_paths` | Json | JSONPath 表达式（如 `["$.*", "$.name"]`） |
-| `separator` | Docx, Xlsx, Html, Epub | append/prepend 模式的文本分隔符 |
-| `convert_engine` | MarkdownBased | `"mineru"`（默认）, `"mineru_deploy"` |
-
-#### 示例 1: 翻译一个 PDF 文件 (使用 `MarkdownBasedWorkflow`)
-
-这是最常见的用例。我们将使用 `minerU` 引擎将 PDF 转换为 Markdown，然后使用 LLM 进行翻译。这里以异步方式为例。
-
-```python
-import asyncio
-from docutranslate.workflow.md_based_workflow import MarkdownBasedWorkflow, MarkdownBasedWorkflowConfig
-from docutranslate.converter.x2md.converter_mineru import ConverterMineruConfig
-from docutranslate.translator.ai_translator.md_translator import MDTranslatorConfig
-from docutranslate.exporter.md.md2html_exporter import MD2HTMLExporterConfig
-
-
-async def main():
-    # 1. 构建翻译器配置
-    translator_config = MDTranslatorConfig(
-        base_url="https://open.bigmodel.cn/api/paas/v4",  # AI 平台 Base URL
-        api_key="YOUR_ZHIPU_API_KEY",  # AI 平台 API Key
-        model_id="glm-4-air",  # 模型 ID
-        to_lang="English",  # 目标语言
-        chunk_size=3000,  # 文本分块大小
-        concurrent=10,  # 并发数
-        # glossary_generate_enable=True, # 启用自动生成术语表
-        # glossary_dict={"Jobs":"乔布斯"}, # 传入术语表
-        # system_proxy_enable=True,# 启用系统代理
-    )
-
-    # 2. 构建转换器配置 (使用 minerU)
-    converter_config = ConverterMineruConfig(
-        mineru_token="YOUR_MINERU_TOKEN",  # 你的 minerU Token
-        formula_ocr=True  # 开启公式识别
-    )
-
-    # 3. 构建主工作流配置
-    workflow_config = MarkdownBasedWorkflowConfig(
-        convert_engine="mineru",  # 指定解析引擎
-        converter_config=converter_config,  # 传入转换器配置
-        translator_config=translator_config,  # 传入翻译器配置
-        html_exporter_config=MD2HTMLExporterConfig(cdn=True)  # HTML 导出配置
-    )
-
-    # 4. 实例化工作流
-    workflow = MarkdownBasedWorkflow(config=workflow_config)
-
-    # 5. 读取文件并执行翻译
-    print("开始读取和翻译文件...")
-    workflow.read_path("path/to/your/document.pdf")
-    await workflow.translate_async()
-    # 或者使用同步的方式
-    # workflow.translate()
-    print("翻译完成！")
-
-    # 6. 保存结果
-    workflow.save_as_html(name="translated_document.html")
-    workflow.save_as_markdown_zip(name="translated_document.zip")
-    workflow.save_as_markdown(name="translated_document.md")  # 嵌入图片的markdown
-    print("文件已保存到 ./output 文件夹。")
-
-    # 或者直接获取内容字符串
-    html_content = workflow.export_to_html()
-    html_content = workflow.export_to_markdown()
-    # print(html_content)
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
-```
-
-### 其他工作流
-
-所有工作流都遵循相同的模式。导入对应的配置和工作流，然后进行配置：
-
-```python
-# TXT: from docutranslate.workflow.txt_workflow import TXTWorkflow, TXTWorkflowConfig
-# JSON: from docutranslate.workflow.json_workflow import JsonWorkflow, JsonWorkflowConfig
-# DOCX: from docutranslate.workflow.docx_workflow import DocxWorkflow, DocxWorkflowConfig
-# XLSX: from docutranslate.workflow.xlsx_workflow import XlsxWorkflow, XlsxWorkflowConfig
-# EPUB: from docutranslate.workflow.epub_workflow import EpubWorkflow, EpubWorkflowConfig
-# HTML: from docutranslate.workflow.html_workflow import HtmlWorkflow, HtmlWorkflowConfig
-# SRT:  from docutranslate.workflow.srt_workflow import SrtWorkflow, SrtWorkflowConfig
-# ASS:   from docutranslate.workflow.ass_workflow import AssWorkflow, AssWorkflowConfig
-```
-
-主要配置选项：
-- **insert_mode**: `"replace"`, `"append"`, `"prepend"` (用于 docx/xlsx/html/epub)
-- **json_paths**: JSONPath 表达式用于 JSON 翻译 (例如 `["$.*", "$.name"]`)
-- **separator**: 用于 `"append"` / `"prepend"` 模式的文本分隔符
-
-## 前提条件与配置详解
-
-### 1. 获取大模型 API Key
-
-翻译功能依赖于大型语言模型，您需要从相应的 AI 平台获取 `base_url`, `api_key`, 和 `model_id`。
-
-> 推荐模型：火山引擎的`doubao-seed-1-6-flash`、`doubao-seed-1-6`系列、智谱的`glm-4-flash`，阿里云的 `qwen-plus`、`qwen-flash`
-> ，deepseek的`deepseek-chat`等。
-
-> [302.AI](https://share.302.ai/BgRLAe)👈从该链接注册可享1美元免费额度
-
-| 平台名称       | 获取APIkey                                                                              | baseurl                                                  |
-|------------|---------------------------------------------------------------------------------------|----------------------------------------------------------|
-| ollama     |                                                                                       | http://127.0.0.1:11434/v1                                |
-| lm studio  |                                                                                       | http://127.0.0.1:1234/v1                                 |
-| 302.AI     | [点击获取](https://share.302.ai/BgRLAe)                                                   | https://api.302.ai/v1                                    |
-| openrouter | [点击获取](https://openrouter.ai/settings/keys)                                           | https://openrouter.ai/api/v1                             |
-| openai     | [点击获取](https://platform.openai.com/api-keys)                                          | https://api.openai.com/v1/                               |
-| gemini     | [点击获取](https://aistudio.google.com/u/0/apikey)                                        | https://generativelanguage.googleapis.com/v1beta/openai/ |
-| deepseek   | [点击获取](https://platform.deepseek.com/api_keys)                                        | https://api.deepseek.com/v1                              |
-| 智谱ai       | [点击获取](https://open.bigmodel.cn/usercenter/apikeys)                                   | https://open.bigmodel.cn/api/paas/v4                     |
-| 腾讯混元       | [点击获取](https://console.cloud.tencent.com/hunyuan/api-key)                             | https://api.hunyuan.cloud.tencent.com/v1                 |
-| 阿里云百炼      | [点击获取](https://bailian.console.aliyun.com/?tab=model#/api-key)                        | https://dashscope.aliyuncs.com/compatible-mode/v1        |
-| 火山引擎       | [点击获取](https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey?apikey=%7B%7D) | https://ark.cn-beijing.volces.com/api/v3                 |
-| 硅基流动       | [点击获取](https://cloud.siliconflow.cn/account/ak)                                       | https://api.siliconflow.cn/v1                            |
-| DMXAPI     | [点击获取](https://www.dmxapi.cn/token)                                                   | https://www.dmxapi.cn/v1                                 |
-| 聚光AI       | [点击获取](https://ai.juguang.chat/console/token)                                         | https://ai.juguang.chat/v1                               |
-
-### 2. PDF解析引擎（不需要翻译PDF的无需关心此处）
-
-### 2.1 获取 minerU Token (在线解析PDF，免费，推荐)
-
-如果您选择 `mineru`作为文档解析引擎（`convert_engine="mineru"`），则需要申请一个免费的 Token。
-
-1. 访问 [minerU 官网](https://mineru.net/apiManage/docs) 注册并申请 API。
-2. 在 [API Token 管理界面](https://mineru.net/apiManage/token) 创建一个新的 API Token。
-
-> **注意**: minerU Token 有 14 天有效期，过期后请重新创建。
-
-### 2.2. 本地部署 MinerU 服务
-
-在离线或内网环境中，可以使用本地部署的 `minerU`。设置 `mineru_deploy_base_url` 为您的 minerU API 地址。
-
-**Client SDK:**
-```python
-from docutranslate.sdk import Client
-
-client = Client(
-    api_key="YOUR_LLM_API_KEY",
-    model_id="llama3",
-    to_lang="中文",
-    convert_engine="mineru_deploy",
-    mineru_deploy_base_url="http://127.0.0.1:8000",  # 您的 minerU API 地址
-)
-result = client.translate("document.pdf")
-result.save(fmt="markdown")
-```
-
-## FAQ
-
-**Q: 翻译出来的还是原文？**
-A: 查看日志报错，通常是 AI 平台欠费或网络问题。
-
-**Q: 8010 端口被占用？**
-A: 使用 `docutranslate -i -p 8011` 或设置 `DOCUTRANSLATE_PORT=8011`。
-
-**Q: 支持 PDF 扫描件？**
-A: 支持，使用 `mineru` 引擎具备 OCR 能力。
-
-**Q: 内网/离线环境使用？**
-A: 可以。本地翻译可以通过部署本地 LLM（Ollama/LM Studio/VLLM 等）。如需本地解析 PDF 则需要本地部署 MinerU。
-
-**Q: PDF 缓存机制？**
-A: `MarkdownBasedWorkflow` 在内存中缓存解析结果（最近 10 次）。可通过 `DOCUTRANSLATE_CACHE_NUM` 配置。
-
-**Q: 启用代理？**
-A: 在 TranslatorConfig 中设置 `system_proxy_enable=True`。
-
-## Star History
-
-<a href="https://www.star-history.com/#xunbu/docutranslate&Date">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=xunbu/docutranslate&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=xunbu/docutranslate&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=xunbu/docutranslate&type=Date" />
- </picture>
-</a>
-
-## 赞赏支持
-
-欢迎支持作者，烦请在备注中说明一下赞赏原因哟
-
-<p align="center">
-  <img src="./images/赞赏码.jpg" alt="赞赏码" style="width: 250px;">
-</p>
+如果端口被占用，程序会自动选择后续可用端口。
+
+## 15. 验证范围
+
+当前重点验证：
+
+- DXF 文件读取。
+- TEXT 提取和回填。
+- MTEXT 提取、组装和回填。
+- ATTRIB 和图块文本处理。
+- 表格文本处理。
+- 引线文字处理。
+- 文本清洗和筛选。
+- 去重翻译。
+- CSV 导出。
+- DWG ODA 转换路径识别。
+- DWG 转 DXF 后复用 DXF Workflow。
+- 前端工程版文案。
+- Windows exe 启动。
+
+## 16. 当前限制
+
+- DWG 翻译依赖 ODA File Converter，系统未安装或路径错误时无法转换。
+- 不进行 DWG 原生二进制解析。
+- 表格只保证文本翻译和回写，不做复杂排版重算。
+- MTEXT 尽量保留结构和显示效果，但不同 CAD 软件可能存在刷新和自动重排差异。
+- 不翻译非文本图形对象。
+- 不保证所有专有 CAD 对象都可被 `ezdxf` 完整解析。
