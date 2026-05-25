@@ -1,0 +1,627 @@
+# SPDX-FileCopyrightText: 2025 QinHan
+# SPDX-License-Identifier: MPL-2.0
+# docutranslate.core.schemas.py
+
+import json
+from typing import (
+    List,
+    Dict,
+    Optional,
+    Literal,
+    Union,
+    Annotated,
+)
+
+from pydantic import (
+    BaseModel,
+    Field,
+    model_validator,
+    field_validator,
+    AliasChoices,
+    ConfigDict,
+)
+
+from docutranslate.agents.agent import ThinkingMode
+from docutranslate.agents.thinking.thinking_factory import ProviderType
+from docutranslate.translator import default_params
+
+# --- 公共类型定义 ---
+WorkflowType = Literal[
+    "auto", "markdown_based", "txt", "json", "xlsx", "docx",
+    "srt", "epub", "html", "ass", "pptx", "dxf", "dwg"
+]
+InsertMode = Literal["replace", "append", "prepend"]
+
+
+class GlossaryAgentConfigPayload(BaseModel):
+    base_url: str = Field(
+        ...,
+        validation_alias=AliasChoices("base_url", "baseurl"),
+        description="用于术语表生成的Agent的LLM API基础URL。",
+        examples=["https://api.openai.com/v1"],
+    )
+    api_key: str = Field(
+        default="xx",
+        validation_alias=AliasChoices("api_key", "key"),
+        description="用于术语表生成的Agent的LLM API密钥（默认为xx）。",
+        examples=["sk-agent-api-key"],
+    )
+
+    @field_validator("api_key")
+    @classmethod
+    def set_default_glossary_api_key(cls, v: str) -> str:
+        return v if v and v.strip() else "xx"
+
+    model_id: str = Field(
+        ..., description="用于术语表生成的Agent的模型ID。", examples=["gpt-4-turbo"]
+    )
+    to_lang: str = Field(
+        ..., description="术语表生成的目标语言。", examples=["简体中文", "English"]
+    )
+    temperature: float = Field(
+        default=0.7, description="用于术语表生成的Agent的温度参数。"
+    )
+    top_p: float = Field(
+        default=0.9, description="用于术语表生成的Agent的核采样参数。"
+    )
+    concurrent: int = Field(default=30, description="Agent的最大并发请求数。")
+    timeout: int = Field(
+        default=default_params["timeout"], description="等待API回复的时间（秒）。"
+    )
+    thinking: ThinkingMode = Field(default="default", description="Agent的思考模式。")
+    retry: int = Field(
+        default=default_params["retry"], description="分块失败后的最大重试次数。"
+    )
+    system_proxy_enable: bool = Field(
+        default=default_params["system_proxy_enable"],
+        description="是否使用系统代理",
+        examples=[True, False],
+    )
+    # 修改: 默认值改为 "" 以避免 Swagger 显示 "string"
+    custom_prompt: Optional[str] = Field(
+        default="", description="生成术语表的用户自定义提示词"
+    )
+    force_json: bool = Field(
+        default=False, description="强制Agent输出JSON格式的术语表。"
+    )
+    # 修改: 增加 examples=[None]
+    rpm: Optional[int] = Field(
+        default=None, description="RPM限制 (Requests Per Minute)", examples=[None]
+    )
+    tpm: Optional[int] = Field(
+        default=None, description="TPM限制 (Tokens Per Minute)", examples=[None]
+    )
+    provider: Optional[ProviderType] = Field(
+        default=None, description="LLM供应商标识", examples=[None]
+    )
+    extra_body: Optional[str] = Field(
+        default="", description="JSON字符串格式的额外请求体参数，会合并到API请求中"
+    )
+
+
+# 1. 定义所有工作流共享的基础参数
+class BaseWorkflowParams(BaseModel):
+    skip_translate: bool = Field(
+        default=False,
+        description="是否跳过翻译步骤。如果为True，则仅执行文档解析和格式转换。",
+    )
+    # 修改: 默认值改为 ""
+    base_url: Optional[str] = Field(
+        default="",
+        validation_alias=AliasChoices("base_url", "baseurl"),
+        description="LLM API的基础URL。当 `skip_translate` 为 `False` 时必填。",
+        examples=["https://api.openai.com/v1"],
+    )
+    api_key: str = Field(
+        default="xx",
+        validation_alias=AliasChoices("api_key", "key"),
+        description="LLM API的密钥（可选，默认为xx）。",
+        examples=["sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxx"],
+    )
+
+    @field_validator("api_key")
+    @classmethod
+    def set_default_api_key(cls, v: str) -> str:
+        return v if v and v.strip() else "xx"
+
+    # 修改: 默认值改为 ""
+    model_id: Optional[str] = Field(
+        default="",
+        description="要使用的LLM模型ID。当 `skip_translate` 为 `False` 时必填。",
+        examples=["gpt-4o"],
+    )
+    to_lang: str = Field(
+        default="中文", description="目标翻译语言。", examples=["简体中文", "English"]
+    )
+    chunk_size: int = Field(
+        default=default_params["chunk_size"], description="文本分割的块大小（字符）。"
+    )
+    concurrent: int = Field(
+        default=default_params["concurrent"], description="并发请求数。"
+    )
+    temperature: float = Field(
+        default=default_params["temperature"], description="LLM温度参数。"
+    )
+    top_p: float = Field(
+        default=default_params["top_p"], description="LLM核采样参数。"
+    )
+    timeout: int = Field(
+        default=default_params["timeout"], description="等待API回复的时间（秒）。"
+    )
+    thinking: ThinkingMode = Field(
+        default=default_params["thinking"],
+        description="Agent的思考模式。",
+        examples=["default", "enable", "disable"],
+    )
+    retry: int = Field(
+        default=default_params["retry"],
+        description="某个分块翻译失败后的最大重试次数。",
+    )
+    system_proxy_enable: bool = Field(
+        default=default_params["system_proxy_enable"],
+        description="是否使用系统代理",
+        examples=[True, False],
+    )
+    # 修改: 默认值改为 ""
+    custom_prompt: Optional[str] = Field(
+        default="", description="用户自定义的翻译Prompt。", alias="custom_prompt"
+    )
+    glossary_dict: Optional[Dict[str, str]] = Field(
+        None, description="术语表字典，key为原文，value为译文。", examples=[None]
+    )
+    glossary_generate_enable: bool = Field(
+        default=False, description="是否开启术语表自动生成。"
+    )
+    glossary_agent_config: Optional[GlossaryAgentConfigPayload] = Field(
+        None,
+        description="用于术语表生成的Agent的配置。如果 `glossary_generate_enable` 为 `True`，此项必填。",
+        examples=[None],
+    )
+    force_json: bool = Field(
+        default=False, description="应输出json格式时强制ai输出json"
+    )
+    rpm: Optional[int] = Field(
+        default=None, description="RPM限制 (Requests Per Minute)", examples=[None]
+    )
+    tpm: Optional[int] = Field(
+        default=None, description="TPM限制 (Tokens Per Minute)", examples=[None]
+    )
+    provider: Optional[ProviderType] = Field(
+        default=None, description="LLM供应商标识", examples=[None]
+    )
+    extra_body: Optional[str] = Field(
+        default="", description="JSON字符串格式的额外请求体参数，会合并到API请求中"
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def check_translation_fields(cls, values):
+        # 修复: 当使用 FastAPI Form + Json 时，Pydantic V2 mode='before' 验证器可能会接收到 JSON 字符串
+        if isinstance(values, str):
+            try:
+                values = json.loads(values)
+            except ValueError:
+                pass
+
+        if isinstance(values, dict):
+            if not values.get("skip_translate"):
+                # 如果是空字符串 "" (即默认值)，not "" 为 True，会触发错误，符合预期
+                if not (values.get("base_url") or values.get("baseurl")):
+                    # Auto 模式在校验前不强制要求 base_url
+                    if values.get("workflow_type") != "auto":
+                        raise ValueError(
+                            "当 `skip_translate` 为 `False` 时, `base_url` 或 `baseurl` 字段是必须的。"
+                        )
+                if not values.get("model_id"):
+                    if values.get("workflow_type") != "auto":
+                        raise ValueError(
+                            "当 `skip_translate` 为 `False` 时, `model_id` 字段是必须的。"
+                        )
+        return values
+
+
+# --- 定义通用参数 Mixin，用于 Auto 模式透传 ---
+# 这是必须添加的关键部分，让 Auto 模式能够显式识别这些参数
+class UniversalParamsMixin(BaseModel):
+    # Markdown/PDF 相关
+    convert_engine: Optional[Literal["identity", "mineru", "docling", "mineru_deploy"]] = None
+    mineru_token: Optional[str] = None
+    model_version: Optional[Literal["pipeline", "vlm"]] = None
+    formula_ocr: Optional[bool] = None
+    code_ocr: Optional[bool] = None
+    mineru_language: Optional[Literal[
+        "ch", "ch_server", "en", "japan", "korean", "chinese_cht",
+        "ta", "te", "ka", "el", "th", "latin", "arabic", "cyrillic",
+        "east_slavic", "devanagari"
+    ]] = None
+
+    # MinerU Deploy 相关 - 设置默认值避免 None 导致的验证错误
+    mineru_deploy_base_url: Optional[str] = None
+    mineru_deploy_backend: Optional[Literal[
+        "pipeline", "vlm-auto-engine", "vlm-http-client",
+        "hybrid-auto-engine", "hybrid-http-client"
+    ]] = None
+    mineru_deploy_parse_method: Optional[Literal["auto", "txt", "ocr"]] = None
+    mineru_deploy_table_enable: bool = True
+    mineru_deploy_formula_enable: bool = True
+    mineru_deploy_start_page_id: int = 0
+    mineru_deploy_end_page_id: int = 99999
+    mineru_deploy_lang_list: Optional[List[str]] = None
+    mineru_deploy_server_url: Optional[str] = None
+
+    # Text/Excel/Common 相关
+    insert_mode: Optional[Literal["replace", "append", "prepend"]] = None
+    separator: Optional[str] = None
+    translate_regions: Optional[List[str]] = None
+    segment_mode: Optional[Literal["line", "paragraph", "none"]] = None
+
+    # Json 相关
+    json_paths: Optional[List[str]] = None
+
+    # DXF/DWG options
+    source_lang: Optional[str] = None
+    clean_text: Optional[bool] = None
+    filter_text: Optional[bool] = None
+    filter_empty: Optional[bool] = None
+    filter_number: Optional[bool] = None
+    filter_symbol: Optional[bool] = None
+    filter_code: Optional[bool] = None
+    filter_target_lang: Optional[bool] = None
+    filter_non_source_lang: Optional[bool] = None
+    ai_filter_enable: Optional[bool] = None
+    ai_filter_prompt: Optional[str] = None
+    min_layout_scale: Optional[float] = None
+    oda_path: Optional[str] = None
+    oda_timeout: Optional[int] = None
+    dwg_output_versions: Optional[List[str]] = None
+    dxf_output_version: Optional[str] = None
+
+
+# 2. 修改 AutoWorkflowParams，使其继承 UniversalParamsMixin
+class AutoWorkflowParams(BaseWorkflowParams, UniversalParamsMixin):
+    workflow_type: Literal["auto"] = Field(..., description="根据文件后缀自动选择工作流。")
+    model_config = ConfigDict(extra="allow")
+
+
+class MarkdownWorkflowParams(BaseWorkflowParams):
+    workflow_type: Literal["markdown_based"] = Field(
+        ..., description="指定使用基于Markdown的翻译工作流。"
+    )
+    convert_engine: Literal[
+        "identity", "mineru", "docling", "mineru_deploy"
+    ] = Field(
+        "identity",
+        description="选择将文件解析为markdown的引擎。'mineru_deploy' 适用于本地部署的 MinerU 服务。如果输入文件是.md，此项可为`identity`或不传。",
+        examples=["identity", "mineru", "docling", "mineru_deploy"],
+    )
+    md2docx_engine: Literal["python", "pandoc", "auto"] | None = Field(
+        "auto",
+        description="选择将markdown导出为docx的引擎。'python'使用纯Python实现，'pandoc'使用pandoc命令，'auto'自动选择（优先使用pandoc），None表示不生成docx。",
+        examples=["python", "pandoc", "auto"],
+    )
+
+    # --- Engine-Specific Parameters ---
+
+    # -- For "mineru" (Cloud API) --
+    # 修改: 默认值改为 ""
+    mineru_token: Optional[str] = Field(
+        default="",
+        description="[仅当 convert_engine='mineru'] 必填的API令牌。",
+    )
+    model_version: Literal["pipeline", "vlm"] = Field(
+        "vlm", description="[仅当 convert_engine='mineru'] Mineru Cloud模型的版本。"
+    )
+    formula_ocr: bool = Field(
+        True,
+        description="[仅当 convert_engine='mineru' 或 'docling'] 是否对公式进行OCR识别。",
+    )
+    mineru_language: Literal[
+        "ch", "ch_server", "en", "japan", "korean", "chinese_cht",
+        "ta", "te", "ka", "el", "th", "latin", "arabic", "cyrillic",
+        "east_slavic", "devanagari"
+    ] = Field(
+        "ch",
+        description="[仅当 convert_engine='mineru'] 识别语言选项，默认 'ch'（中英文）。",
+    )
+
+    # -- For "docling" --
+    code_ocr: bool = Field(
+        True, description="[仅当 convert_engine='docling'] 是否对代码块进行OCR识别。"
+    )
+
+    # -- For "mineru_deploy" (Local Deployment) --
+    mineru_deploy_base_url: Optional[str] = Field(
+        "http://127.0.0.1:8000",
+        description="[仅当 convert_engine='mineru_deploy'] 本地部署的 MinerU 服务地址。",
+    )
+    # --- UPDATED BACKEND LIST ---
+    mineru_deploy_backend: Literal[
+        "pipeline",
+        "vlm-auto-engine",
+        "vlm-http-client",
+        "hybrid-auto-engine",
+        "hybrid-http-client"
+    ] = Field(
+        "hybrid-auto-engine",
+        description="[仅当 convert_engine='mineru_deploy'] 本地部署的 MinerU 服务使用的后端。",
+    )
+    # --- NEW PARAMETERS START ---
+    mineru_deploy_parse_method: Literal["auto", "txt", "ocr"] = Field(
+        "auto",
+        description="[仅当 convert_engine='mineru_deploy'] 解析方法: auto, txt, ocr"
+    )
+    mineru_deploy_table_enable: bool = Field(
+        True,
+        description="[仅当 convert_engine='mineru_deploy'] 本地部署的服务是否启用表格解析。",
+    )
+    # --- NEW PARAMETERS END ---
+    mineru_deploy_formula_enable: bool = Field(
+        True,
+        description="[仅当 convert_engine='mineru_deploy'] 本地部署的服务是否启用公式解析。",
+    )
+    mineru_deploy_start_page_id: int = Field(
+        0, description="[仅当 convert_engine='mineru_deploy'] 起始解析页面。"
+    )
+    mineru_deploy_end_page_id: int = Field(
+        99999, description="[仅当 convert_engine='mineru_deploy'] 结束解析页面。"
+    )
+    mineru_deploy_lang_list: Optional[List[str]] = Field(
+        None,
+        description="[仅当 convert_engine='mineru_deploy'] 语言列表, 默认 ['ch']。",
+        examples=[["ch", "en"]],
+    )
+    # 修改: 默认值改为 ""
+    mineru_deploy_server_url: Optional[str] = Field(
+        default="",
+        description="[仅当 convert_engine='mineru_deploy' 且 backend为http-client相关时] Server URL.",
+    )
+
+    @model_validator(mode="after")
+    def check_engine_params(self):
+        if self.convert_engine == "mineru" and not self.mineru_token:
+            raise ValueError(
+                "当 `convert_engine` 为 'mineru' 时，`mineru_token` 字段是必须的。"
+            )
+        if (
+            self.convert_engine == "mineru_deploy"
+            and not self.mineru_deploy_base_url
+        ):
+            raise ValueError(
+                "当 `convert_engine` 为 'mineru_deploy' 时，`mineru_deploy_base_url` 字段是必须的。"
+            )
+        return self
+
+
+class TextWorkflowParams(BaseWorkflowParams):
+    workflow_type: Literal["txt"] = Field(
+        ..., description="指定使用纯文本的翻译工作流。"
+    )
+    insert_mode: Literal["replace", "append", "prepend"] = Field(
+        "replace",
+        description="翻译文本的插入模式。'replace'：替换原文，'append'：附加到原文后，'prepend'：附加到原文前。",
+    )
+    separator: str = Field(
+        "\n",
+        description="当 insert_mode 为 'append' 或 'prepend' 时，用于分隔原文和译文的分隔符。",
+    )
+    segment_mode: Literal["line", "paragraph", "none"] = Field(
+        default="line",
+        description="分段模式: 'line'(按行), 'paragraph'(按段), 'none'(全文)",
+    )
+
+
+class JsonWorkflowParams(BaseWorkflowParams):
+    workflow_type: Literal["json"] = Field(
+        ..., description="指定使用JSON的翻译工作流。"
+    )
+    json_paths: List[str] = Field(
+        ...,
+        description="一个jsonpath-ng表达式列表，用于指定需要翻译的JSON字段。",
+        examples=[["$.product.name", "$.product.description", "$.features[*]"]],
+    )
+
+
+class XlsxWorkflowParams(BaseWorkflowParams):
+    workflow_type: Literal["xlsx"] = Field(
+        ..., description="指定使用XLSX的翻译工作流。"
+    )
+    insert_mode: Literal["replace", "append", "prepend"] = Field(
+        "replace",
+        description="翻译文本的插入模式。'replace'：替换原文，'append'：附加到原文后，'prepend'：附加到原文前。",
+    )
+    separator: str = Field(
+        "\n",
+        description="当 insert_mode 为 'append' 或 'prepend' 时，用于分隔原文和译文的分隔符。",
+    )
+    translate_regions: Optional[List[str]] = Field(
+        None,
+        description="指定翻译区域列表。示例: ['Sheet1!A1:B10', 'C:D', 'E5']。如果不指定表名 (如 'C:D')，则应用于所有表。如果为 None，则翻译整个文件中的所有文本。",
+        examples=[None],
+    )
+
+
+class DocxWorkflowParams(BaseWorkflowParams):
+    workflow_type: Literal["docx"] = Field(
+        ..., description="指定使用DOCX的翻译工作流。"
+    )
+    insert_mode: Literal["replace", "append", "prepend"] = Field(
+        "replace",
+        description="翻译文本的插入模式。'replace'：替换原文，'append'：附加到原文后，'prepend'：附加到原文前。",
+    )
+    separator: str = Field(
+        "\n",
+        description="当 insert_mode 为 'append' 或 'prepend' 时，用于分隔原文和译文的分隔符。",
+    )
+
+
+class SrtWorkflowParams(BaseWorkflowParams):
+    workflow_type: Literal["srt"] = Field(
+        ..., description="指定使用SRT字幕的翻译工作流。"
+    )
+    insert_mode: Literal["replace", "append", "prepend"] = Field(
+        "replace",
+        description="翻译文本的插入模式。'replace'：替换原文，'append'：附加到原文后，'prepend'：附加到原文前。",
+    )
+    separator: str = Field(
+        "\n",
+        description="当 insert_mode 为 'append' 或 'prepend' 时，用于分隔原文和译文的分隔符。",
+    )
+
+
+class EpubWorkflowParams(BaseWorkflowParams):
+    workflow_type: Literal["epub"] = Field(
+        ..., description="指定使用EPUB的翻译工作流。"
+    )
+    insert_mode: Literal["replace", "append", "prepend"] = Field(
+        "replace",
+        description="翻译文本的插入模式。'replace'：替换原文，'append'：附加到原文后，'prepend'：附加到原文前。",
+    )
+    separator: str = Field(
+        "\n",
+        description="当 insert_mode 为 'append' 或 'prepend' 时，用于分隔原文和译文的分隔符。",
+    )
+
+
+# --- HTML WORKFLOW PARAMS START ---
+class HtmlWorkflowParams(BaseWorkflowParams):
+    workflow_type: Literal["html"] = Field(
+        ..., description="指定使用HTML的翻译工作流。"
+    )
+    insert_mode: Literal["replace", "append", "prepend"] = Field(
+        "replace",
+        description="翻译文本的插入模式。'replace'：替换原文，'append' :附加到原文后，'prepend'：附加到原文前。",
+    )
+    separator: str = Field(
+        " ",
+        description="当 insert_mode 为 'append' 或 'prepend' 时，用于分隔原文和译文的分隔符。",
+    )
+
+
+# --- HTML WORKFLOW PARAMS END ---
+
+
+# --- ASS WORKFLOW PARAMS START ---
+class AssWorkflowParams(BaseWorkflowParams):
+    workflow_type: Literal["ass"] = Field(
+        ..., description="指定使用ASS字幕的翻译工作流。"
+    )
+    insert_mode: Literal["replace", "append", "prepend"] = Field(
+        "replace",
+        description="翻译文本的插入模式。'replace'：替换原文，'append'：附加到原文后，'prepend'：附加到原文前。",
+    )
+    separator: str = Field(
+        "\\N",
+        description="当 insert_mode 为 'append' 或 'prepend' 时，用于分隔原文和译文的分隔符。ASS格式通常使用 \\N 作为换行符。",
+    )
+
+
+# --- ASS WORKFLOW PARAMS END ---
+
+
+# --- PPTX WORKFLOW PARAMS START ---
+class PPTXWorkflowParams(BaseWorkflowParams):
+    workflow_type: Literal["pptx"] = Field(
+        ..., description="指定使用PPTX的翻译工作流。"
+    )
+    insert_mode: Literal["replace", "append", "prepend"] = Field(
+        "replace",
+        description="翻译文本的插入模式。'replace'：替换原文，'append'：附加到原文后，'prepend'：附加到原文前。",
+    )
+    separator: str = Field(
+        "\n",
+        description="当 insert_mode 为 'append' 或 'prepend' 时，用于分隔原文和译文的分隔符。",
+    )
+    # target_cjk_font removed as per request
+
+
+# --- PPTX WORKFLOW PARAMS END ---
+
+
+class DxfWorkflowParams(BaseWorkflowParams):
+    workflow_type: Literal["dxf"] = Field(
+        ..., description="Translate DXF TEXT and MTEXT entities while preserving the DXF structure."
+    )
+    insert_mode: Literal["replace", "append", "prepend"] = Field(
+        "replace",
+        description="How translated text is written back to TEXT/MTEXT entities.",
+    )
+    separator: str = Field(
+        "\n",
+        description="Separator used by append/prepend modes.",
+    )
+    source_lang: str = Field(
+        "auto",
+        description="Source language hint used by DXF text filtering. Use auto to disable language-specific filtering.",
+    )
+    clean_text: bool = Field(
+        True,
+        description="Whether to normalize DXF text before filtering and translation.",
+    )
+    filter_text: bool = Field(
+        True,
+        description="Master switch for DXF text filtering. Disable to translate all non-empty cleaned text.",
+    )
+    filter_empty: bool = True
+    filter_number: bool = True
+    filter_symbol: bool = True
+    filter_code: bool = True
+    filter_target_lang: bool = True
+    filter_non_source_lang: bool = True
+    ai_filter_enable: bool = Field(
+        True,
+        description="Use the existing AI translator config to decide which DXF text should be translated.",
+    )
+    ai_filter_prompt: Optional[str] = Field(
+        None,
+        description="Custom prompt for DXF AI text filtering. The model should output KEEP or SKIP for each segment.",
+    )
+    min_layout_scale: float = Field(
+        0.65,
+        description="Minimum text height scale used when translated DXF text is longer than the original.",
+    )
+
+
+class DwgWorkflowParams(DxfWorkflowParams):
+    workflow_type: Literal["dwg"] = Field(
+        ..., description="Translate DWG by converting it through ODA File Converter and reusing the DXF workflow."
+    )
+    oda_path: Optional[str] = Field(
+        "",
+        description="Path to ODAFileConverter.exe. Leave empty to auto-detect from PATH or common install locations.",
+    )
+    oda_timeout: int = Field(
+        300,
+        description="Timeout in seconds for each ODA File Converter operation.",
+    )
+    dwg_output_version: str = Field(
+        "ACAD2007",
+        description="Primary DWG output version selected from the Web UI.",
+    )
+    dwg_output_versions: List[str] = Field(
+        default_factory=lambda: ["ACAD2007"],
+        description="DWG output versions generated for download, such as ACAD2010, ACAD2013, ACAD2018, ACAD2021.",
+    )
+    dxf_output_version: str = Field(
+        "ACAD2018",
+        description="Intermediate DXF version used when converting DWG to DXF.",
+    )
+
+
+TranslatePayload = Annotated[
+    Union[
+        AutoWorkflowParams,
+        MarkdownWorkflowParams,
+        TextWorkflowParams,
+        JsonWorkflowParams,
+        XlsxWorkflowParams,
+        DocxWorkflowParams,
+        SrtWorkflowParams,
+        EpubWorkflowParams,
+        HtmlWorkflowParams,
+        AssWorkflowParams,
+        PPTXWorkflowParams,
+        DxfWorkflowParams,
+        DwgWorkflowParams,
+    ],
+    Field(discriminator="workflow_type"),
+]
