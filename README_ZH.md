@@ -5,9 +5,8 @@
 <h1 align="center">DocuTranslate for engineer</h1>
 
 <p align="center">
-  <a href="https://github.com/xunbu/docutranslate/stargazers"><img src="https://img.shields.io/github/stars/xunbu/docutranslate?style=flat-square&logo=github&color=blue" alt="GitHub stars"></a>
-  <a href="https://github.com/xunbu/docutranslate/releases"><img src="https://img.shields.io/github/downloads/xunbu/docutranslate/total?logo=github&style=flat-square" alt="GitHub Downloads"></a>
-  <a href="https://pypi.org/project/docutranslate/"><img src="https://img.shields.io/pypi/v/docutranslate?style=flat-square" alt="PyPI version"></a>
+  <a href="https://github.com/simonzhongeng-sketch/DocuTranslate-for-engineer"><img src="https://img.shields.io/badge/DocuTranslate-for%20engineer-blue?style=flat-square&logo=github" alt="DocuTranslate for engineer"></a>
+  <a href="https://github.com/xunbu/docutranslate"><img src="https://img.shields.io/badge/%E5%9F%BA%E4%BA%8E-DocuTranslate-lightgrey?style=flat-square&logo=github" alt="基于 DocuTranslate"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white&style=flat-square" alt="Python Version"></a>
   <a href="./LICENSE"><img src="https://img.shields.io/github/license/xunbu/docutranslate?style=flat-square" alt="License"></a>
 </p>
@@ -20,25 +19,18 @@
   基于 DocuTranslate 二次开发的工程文件翻译工具，重点增加 DXF/DWG 工程图纸翻译支持。
 </p>
 
+> 本项目基于源项目 [DocuTranslate](https://github.com/xunbu/docutranslate) 二次开发，源项目提供了核心翻译工作流、AI 配置、Web UI、API、术语表和多格式翻译基础。本项目重点扩展 DXF/DWG 工程图纸翻译能力。如果本项目对你有帮助，也欢迎前往源项目点 Star 支持原作者。
+
 - ✅ **DXF/DWG 工程图纸翻译**：新增 `.dxf` 和 `.dwg` 工程图纸专用翻译工作流，复用原 DocuTranslate 的 AI 翻译器、术语表、Web UI、API、异步队列、重试和配置机制。
 - ✅ **DXF 原生处理**：使用 `ezdxf` 直接读取和回写 `.dxf` 文件，不依赖 AutoCAD。支持翻译 `TEXT`、`MTEXT`、`ATTRIB`、图块内文本、表格单元格文本和引线文字。
 - ✅ **DWG 转换翻译**：通过 ODA File Converter 将 `.dwg` 转为临时 DXF，复用 DXF 工作流完成翻译后，再转换回指定 DWG 版本。
 - ✅ **工程文本清洗与筛选**：可过滤纯数字、符号、工程位号、设备编号、型号、参数值、电气编码、已经是目标语言的内容等非译字符串，并支持 AI 文本筛选减少无效翻译。
 - ✅ **术语 CSV 输出**：输出完整 DXF/DWG 术语 CSV 和仅包含已翻译内容的 CSV，方便工程人员后期人工核对、修订术语和复用翻译结果。
-- ✅ **支持多种格式**：除工程图纸外，仍支持 `pdf`、`docx`、`xlsx`、`md`、`txt`、`json`、`epub`、`srt`、`ass` 等多种文件。
-- ✅ **自动生成术语表**：支持自动生成术语表实现术语的对齐。
-- ✅ **PDF表格、公式、代码识别**：使用`mineru`（在线或本地部署）进行PDF解析，支持对学术论文中经常出现的表格、公式、代码的识别与翻译
-- ✅ **json翻译**：支持通过json路径(`jsonpath-ng`语法规范)指定json中需要被翻译的值。
-- ✅ **Word/Excel保持格式翻译**：支持`docx`、`xlsx`文件（暂不支持`doc`、`xls`文件）保持原格式进行翻译。
-- ✅ **多ai平台支持**：支持绝大部分的ai平台，可以实现自定义提示词的并发高性能ai翻译。
-- ✅ **异步支持**：专为高性能场景设计，提供完整的异步支持，实现了可以多任务并行的服务接口。
-- ✅ **局域网、多人使用支持**：支持在局域网中多人同时使用。
-- ✅ **交互式Web界面**：提供开箱即用的 Web UI 和 RESTful API，方便集成与使用。
-- ✅ **小体积、多平台懒人包支持**：不到40M的windows、mac懒人包。
+- ✅ **继承 DocuTranslate 基础能力**：保留源项目的多格式翻译、术语表生成、AI 平台配置、异步任务队列、Web UI 和 RESTful API，本项目在此基础上重点扩展工程图纸翻译。
 
 > 在翻译`pdf`时会先转换为markdown，这会**丢失**原先的排版，对排版有要求的用户请注意
 
-> QQ交流群：1047781902 1081128602
+> 源项目地址：[xunbu/docutranslate](https://github.com/xunbu/docutranslate)。欢迎前往源项目点 Star 支持原作者。
 
 ## DXF/DWG 图纸翻译
 
@@ -74,9 +66,9 @@
 **小说翻译**：
 ![小说翻译](/images/小说翻译.png)
 
-## 整合包
+## 安装与源项目
 
-对于希望快速上手的用户，我们在 [GitHub Releases](https://github.com/xunbu/docutranslate/releases) 上提供整合包。您只需下载、解压，并填入您的 AI 平台 API-Key 即可开始使用。
+本工程版源码维护在当前仓库。源项目 DocuTranslate 及其原始发布包可在 [xunbu/docutranslate](https://github.com/xunbu/docutranslate) 查看，欢迎前往源项目点 Star 支持原作者。
 
 ## 快速开始
 

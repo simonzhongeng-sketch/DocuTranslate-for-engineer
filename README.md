@@ -5,9 +5,8 @@
 <h1 align="center">DocuTranslate for engineer</h1>
 
 <p align="center">
-  <a href="https://github.com/xunbu/docutranslate/stargazers"><img src="https://img.shields.io/github/stars/xunbu/docutranslate?style=flat-square&logo=github&color=blue" alt="GitHub stars"></a>
-  <a href="https://github.com/xunbu/docutranslate/releases"><img src="https://img.shields.io/github/downloads/xunbu/docutranslate/total?logo=github&style=flat-square" alt="GitHub Downloads"></a>
-  <a href="https://pypi.org/project/docutranslate/"><img src="https://img.shields.io/pypi/v/docutranslate?style=flat-square" alt="PyPI version"></a>
+  <a href="https://github.com/simonzhongeng-sketch/DocuTranslate-for-engineer"><img src="https://img.shields.io/badge/DocuTranslate-for%20engineer-blue?style=flat-square&logo=github" alt="DocuTranslate for engineer"></a>
+  <a href="https://github.com/xunbu/docutranslate"><img src="https://img.shields.io/badge/Based%20on-DocuTranslate-lightgrey?style=flat-square&logo=github" alt="Based on DocuTranslate"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white&style=flat-square" alt="Python Version"></a>
   <a href="./LICENSE"><img src="https://img.shields.io/github/license/xunbu/docutranslate?style=flat-square" alt="License"></a>
 </p>
@@ -20,25 +19,18 @@
   An engineering-oriented document translation tool based on DocuTranslate, with added support for DXF/DWG drawing translation.
 </p>
 
+> This project is an engineering edition built on the upstream [DocuTranslate](https://github.com/xunbu/docutranslate). The upstream project provides the core translation workflow, AI configuration, Web UI, API, glossary, and multi-format translation foundation. If this engineering edition helps you, please also visit and star the upstream DocuTranslate project.
+
 - ✅ **DXF/DWG Engineering Drawing Translation**: Adds dedicated workflows for `.dxf` and `.dwg` engineering drawings, reusing the original DocuTranslate translation engine, glossary, Web UI, API, async queue, retry, and configuration mechanisms.
 - ✅ **DXF Native Processing with ezdxf**: Reads and writes `.dxf` files through `ezdxf`, without AutoCAD. Supports translation of `TEXT`, `MTEXT`, `ATTRIB`, block text, table cell text, and leader text.
 - ✅ **DWG Translation via ODA File Converter**: Converts `.dwg` files to temporary DXF files through ODA File Converter, translates them through the DXF workflow, and converts the translated result back to the selected DWG version.
 - ✅ **Engineering Text Cleaning and Filtering**: Filters non-translatable drawing strings such as pure numbers, symbols, engineering tags, device codes, model numbers, electrical parameters, and text already in the target language. Optional AI filtering can further reduce unnecessary translation.
 - ✅ **Translation Review CSV Output**: Outputs full DXF/DWG term CSV files and translated-only CSV files for manual engineering review, terminology correction, and later reuse.
-- ✅ **Support Multiple Formats**: Besides engineering drawings, it still translates `pdf`, `docx`, `xlsx`, `md`, `txt`, `json`, `epub`, `srt`, `ass`, and more.
-- ✅ **Auto-Generate Glossary**: Supports automatic glossary generation to ensure term alignment.
-- ✅ **PDF Table, Formula, Code Recognition**: Uses `mineru` (online or locally deployed) for PDF parsing, supporting recognition and translation of tables, formulas, and code commonly found in academic papers.
-- ✅ **JSON Translation**: Supports specifying values to translate within JSON using paths (`jsonpath-ng` syntax).
-- ✅ **Word/Excel Format Preservation**: Supports `docx` and `xlsx` files (currently does not support `doc` or `xls`) while maintaining original formatting.
-- ✅ **Multi-AI Platform Support**: Supports most AI platforms, allowing for high-performance concurrent AI translation with custom prompts.
-- ✅ **Async Support**: Designed for high-performance scenarios, providing full asynchronous support and interfaces for parallel multi-tasking.
-- ✅ **LAN & Multi-user Support**: Supports simultaneous use by multiple users within a local area network (LAN).
-- ✅ **Interactive Web Interface**: Provides an out-of-the-box Web UI and RESTful API for easy integration and usage.
-- ✅ **Compact, Portable Packages**: Windows and Mac portable packages under 40MB.
+- ✅ **Inherited DocuTranslate Capabilities**: Keeps the upstream project's multi-format translation, glossary generation, AI platform configuration, async task queue, Web UI, and RESTful API as the foundation.
 
 > When translating `pdf`, it is first converted to markdown. This will **lose** the original layout. Users with strict layout requirements should take note.
 
-> QQ Community Group: 1047781902 1081128602
+> Upstream project: [xunbu/docutranslate](https://github.com/xunbu/docutranslate). Please consider giving the upstream project a star as well.
 
 ## DXF/DWG Drawing Translation
 
@@ -72,9 +64,9 @@ For implementation details, see [DXF_DWG_TRANSLATION_TECHNICAL_ROUTE.md](./DXF_D
 **Novel Translation**:
 ![Novel Translation](/images/小说翻译.png)
 
-## Integration Packages
+## Packages And Source Project
 
-For users who want to get started quickly, we provide integration packages on [GitHub Releases](https://github.com/xunbu/docutranslate/releases). Simply download, unzip, and enter your AI platform API-Key to start using it.
+This engineering edition is maintained in the current repository. The upstream DocuTranslate project and its original release packages are available at [xunbu/docutranslate](https://github.com/xunbu/docutranslate); please visit and star the upstream project if it helps your work.
 
 ## Quick Start
 
